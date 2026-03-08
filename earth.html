@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earth — Layer by Layer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --ink: #0d0d0d;
+  --paper: #f3f2ef;
+  --mid: #888;
+  --lite: #ccc;
+  --ghost: #e4e3e0;
+}
+
+html { scroll-behavior: auto; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+}
+
+canvas#globe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---- Scroll hint ---- */
+.scroll-hint {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-size: 9px;
+  letter-spacing: 0.45em;
+  color: var(--mid);
+  text-transform: uppercase;
+  transition: opacity 0.6s;
+}
+.scroll-line {
+  width: 1px;
+  height: 44px;
+  background: linear-gradient(to bottom, var(--mid), transparent);
+  animation: linePulse 2s ease-in-out infinite;
+}
+@keyframes linePulse {
+  0%, 100% { opacity: 0.4; transform: scaleY(1); }
+  50%       { opacity: 1;   transform: scaleY(1.15); }
+}
+
+/* ---- Progress dots ---- */
+.progress {
+  position: fixed;
+  top: 50%;
+  right: 28px;
+  transform: translateY(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.progress-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--lite);
+  transition: background 0.4s, transform 0.4s;
+  cursor: default;
+}
+.progress-dot.active {
+  background: var(--ink);
+  transform: scale(2);
+}
+
+/* ---- Layer label (top right) ---- */
+#layer-label {
+  position: fixed;
+  top: 36px;
+  right: 52px;
+  z-index: 50;
+  font-size: 9px;
+  letter-spacing: 0.4em;
+  color: var(--mid);
+  text-transform: uppercase;
+  text-align: right;
+  transition: opacity 0.5s;
+}
+
+/* ---- Logo / site name ---- */
+#site-name {
+  position: fixed;
+  top: 36px;
+  left: 40px;
+  z-index: 50;
+  font-family: 'Cormorant Garant', serif;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+}
+
+/* ---- Sections ---- */
+.sections {
+  position: relative;
+  z-index: 10;
+}
+
+.section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 0 7vw;
+  pointer-events: none;
+}
+
+.section:nth-child(even) {
+  justify-content: flex-end;
+}
+
+.section-content {
+  max-width: 360px;
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.9s ease, transform 0.9s ease;
+  pointer-events: auto;
+}
+.section-content.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section.hero {
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-bottom: 100px;
+}
+.section.hero .section-content {
+  max-width: 560px;
+}
+
+.hero-eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.5em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.hero-title {
+  font-family: 'Cormorant Garant', serif;
+  font-size: clamp(72px, 11vw, 148px);
+  font-weight: 300;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+}
+.hero-title em {
+  font-style: italic;
+  color: var(--mid);
+}
+
+.section-number {
+  font-size: 9px;
+  letter-spacing: 0.35em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.section-title {
+  font-family: 'Cormorant Garant', serif;
+  font-size: clamp(44px, 5.5vw, 76px);
+  font-weight: 300;
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  margin-bottom: 28px;
+}
+.section-subtitle {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.section-body {
+  font-size: 12px;
+  line-height: 1.85;
+  color: #555;
+  font-weight: 300;
+  max-width: 290px;
+}
+
+.stat-row {
+  display: flex;
+  gap: 36px;
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--ghost);
+}
+.stat { display: flex; flex-direction: column; gap: 5px; }
+.stat-value {
+  font-family: 'Cormorant Garant', serif;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  font-size: 8px;
+  letter-spacing: 0.25em;
+  color: var(--mid);
+  text-transform: uppercase;
+}
+
+/* ---- Atmosphere layer bars ---- */
+.atmo-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 36px;
+}
+.atmo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.atmo-bar {
+  height: 1px;
+  background: var(--ink);
+  flex-shrink: 0;
+}
+.atmo-name {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--mid);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---- Depth ruler (decorative) ---- */
+#depth-ruler {
+  position: fixed;
+  bottom: 36px;
+  right: 52px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+#depth-ruler.visible { opacity: 1; }
+#depth-ruler span {
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: var(--lite);
+}
+#depth-needle {
+  width: 40px;
+  height: 1px;
+  background: var(--lite);
+  transform-origin: right center;
+}
+</style>
+</head>
+<body>
+
+<canvas id="globe"></canvas>
+
+<div class="scroll-hint" id="scrollHint">
+  <div class="scroll-line"></div>
+  <span>Scroll</span>
+</div>
+
+<div id="site-name">Earth Within</div>
+<div id="layer-label"></div>
+
+<nav class="progress" id="progress">
+  <div class="progress-dot" data-index="0"></div>
+  <div class="progress-dot" data-index="1"></div>
+  <div class="progress-dot" data-index="2"></div>
+  <div class="progress-dot" data-index="3"></div>
+  <div class="progress-dot" data-index="4"></div>
+  <div class="progress-dot" data-index="5"></div>
+</nav>
+
+<div class="sections">
+
+  <!-- HERO -->
+  <section class="section hero" data-index="0">
+    <div class="section-content">
+      <div class="hero-eyebrow">A geological survey · 2026</div>
+      <h1 class="hero-title">Earth<br><em>Within</em></h1>
+    </div>
+  </section>
+
+  <!-- CRUST -->
+  <section class="section" data-index="1">
+    <div class="section-content">
+      <div class="section-number">01 — Lithosphere</div>
+      <h2 class="section-title">The<br>Crust</h2>
+      <div class="section-subtitle">Surface layer</div>
+      <p class="section-body">Earth's outermost shell: a rigid mosaic of silicate rock ranging from 5 km beneath the ocean floor to 70 km beneath the highest mountain ranges. It is the stage upon which all terrestrial life unfolds — yet it makes up barely 1% of Earth's total volume.</p>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-value">70km</span>
+          <span class="stat-label">Max depth</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">~1%</span>
+          <span class="stat-label">Earth volume</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANTLE -->
+  <section class="section" data-index="2">
+    <div class="section-content">
+      <div class="section-number">02 — Mesosphere</div>
+      <h2 class="section-title">The<br>Mantle</h2>
+      <div class="section-subtitle">Silicate rock layer</div>
+      <p class="section-body">A vast ocean of solid rock, nearly 2,900 km thick. Though rigid, the mantle flows over geological timescales through convection — slow currents of heat that push tectonic plates, build mountains, and swallow ocean floors back into the deep.</p>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-value">2,900</span>
+          <span class="stat-label">km thick</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">84%</span>
+          <span class="stat-label">Earth volume</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OUTER CORE -->
+  <section class="section" data-index="3">
+    <div class="section-content">
+      <div class="section-number">03 — Outer Core</div>
+      <h2 class="section-title">Liquid<br>Iron</h2>
+      <div class="section-subtitle">Metallic fluid layer</div>
+      <p class="section-body">A churning sea of liquid iron and nickel at temperatures exceeding 5,000°C. Its turbulent convection — coupled with Earth's rotation — generates the geodynamo: the magnetic field that shields life from solar wind and would-be extinction.</p>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-value">5,000°</span>
+          <span class="stat-label">Celsius</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">2,260</span>
+          <span class="stat-label">km thick</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INNER CORE -->
+  <section class="section" data-index="4">
+    <div class="section-content">
+      <div class="section-number">04 — Inner Core</div>
+      <h2 class="section-title">Solid<br>Heart</h2>
+      <div class="section-subtitle">Iron-nickel alloy</div>
+      <p class="section-body">A sphere of solid iron the size of the Moon, compressed by 3.5 million atmospheres of pressure into a crystalline lattice. It rotates slightly faster than the planet above — completing an extra revolution every few centuries in quiet, unknowable solitude.</p>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-value">1,220</span>
+          <span class="stat-label">km radius</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">6,000°</span>
+          <span class="stat-label">Celsius</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ATMOSPHERE -->
+  <section class="section" data-index="5">
+    <div class="section-content">
+      <div class="section-number">05 — Atmosphere</div>
+      <h2 class="section-title">The<br>Veil</h2>
+      <div class="section-subtitle">Five distinct layers</div>
+      <p class="section-body">A thin membrane of gas — 78% nitrogen, 21% oxygen — held by gravity alone. What we call "sky" is merely 12 km of troposphere. Beyond lies strata of decreasing pressure, fading gradually into the vacuum of space.</p>
+      <div class="atmo-layers">
+        <div class="atmo-row">
+          <div class="atmo-bar" style="width:14px"></div>
+          <span class="atmo-name">Troposphere — 0–12 km</span>
+        </div>
+        <div class="atmo-row">
+          <div class="atmo-bar" style="width:46px"></div>
+          <span class="atmo-name">Stratosphere — 12–50 km</span>
+        </div>
+        <div class="atmo-row">
+          <div class="atmo-bar" style="width:80px"></div>
+          <span class="atmo-name">Mesosphere — 50–85 km</span>
+        </div>
+        <div class="atmo-row">
+          <div class="atmo-bar" style="width:130px"></div>
+          <span class="atmo-name">Thermosphere — 85–600 km</span>
+        </div>
+        <div class="atmo-row">
+          <div class="atmo-bar" style="width:180px"></div>
+          <span class="atmo-name">Exosphere — 600–10,000 km</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─────────────────────────────────────────────
+//  THREE.JS SETUP
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('globe');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.localClippingEnabled = true;
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0.4, 0.15, 4.8);
+camera.lookAt(0, 0, 0);
+
+// Single clipping plane that slices the sphere to reveal cross-section
+const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 2.5); // starts open
+
+// ─────────────────────────────────────────────
+//  SPHERE LAYERS
+// ─────────────────────────────────────────────
+const layerDefs = [
+  // name,         radius, segs, baseOpacity, clip,  speed
+  ['atmo3',        2.00,   20,   0.06,        false, 0.6],
+  ['atmo2',        1.72,   22,   0.08,        false, 0.7],
+  ['atmo1',        1.50,   24,   0.10,        false, 0.8],
+  ['crust',        1.22,   44,   0.55,        true,  1.0],
+  ['mantle',       1.04,   38,   0.45,        true,  0.9],
+  ['outerCore',    0.64,   32,   0.65,        true,  0.85],
+  ['innerCore',    0.30,   26,   0.85,        true,  0.7],
+];
+
+const sphereMeshes = [];
+layerDefs.forEach(([name, r, segs, op, clip, spd]) => {
+  const geo = new THREE.SphereGeometry(r, segs, segs);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x0d0d0d,
+    wireframe: true,
+    transparent: true,
+    opacity: op,
+    clippingPlanes: clip ? [clipPlane] : [],
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData = { name, baseOp: op, clip, rotSpeed: spd };
+  scene.add(mesh);
+  sphereMeshes.push(mesh);
+});
+
+// ─────────────────────────────────────────────
+//  CROSS-SECTION FILL DISC
+// ─────────────────────────────────────────────
+const discGeo = new THREE.CircleGeometry(2.0, 72);
+const discMat = new THREE.MeshBasicMaterial({
+  color: 0xf3f2ef,
+  transparent: true,
+  opacity: 0.0,
+  side: THREE.DoubleSide,
+});
+const disc = new THREE.Mesh(discGeo, discMat);
+disc.rotation.y = Math.PI / 2;
+scene.add(disc);
+
+// Concentric cut rings at layer boundaries
+const ringRadii = [0.30, 0.64, 1.04, 1.22];
+const cutRings = [];
+ringRadii.forEach(r => {
+  const rGeo = new THREE.RingGeometry(r - 0.008, r + 0.008, 96);
+  const rMat = new THREE.MeshBasicMaterial({
+    color: 0x0d0d0d,
+    transparent: true,
+    opacity: 0.0,
+    side: THREE.DoubleSide,
+  });
+  const ring = new THREE.Mesh(rGeo, rMat);
+  ring.rotation.y = Math.PI / 2;
+  scene.add(ring);
+  cutRings.push(ring);
+});
+
+// ─────────────────────────────────────────────
+//  SECTION STATE
+// ─────────────────────────────────────────────
+const SECTION_COUNT = 6;
+
+const SECTION_CONFIG = [
+  {
+    // hero
+    clipX: 2.5,
+    cam: [0.4, 0.15, 4.8],
+    discOp: 0.0,
+    ringOp: 0.0,
+    layerOps: [0.06, 0.08, 0.10, 0.55, 0.45, 0.65, 0.85],
+    label: '',
+  },
+  {
+    // crust
+    clipX: 0.9,
+    cam: [0.7, 0.1, 4.2],
+    discOp: 0.7,
+    ringOp: 0.4,
+    layerOps: [0.03, 0.03, 0.03, 1.0, 0.18, 0.18, 0.22],
+    label: 'Crust',
+  },
+  {
+    // mantle
+    clipX: 0.1,
+    cam: [0.7, 0.05, 3.8],
+    discOp: 0.7,
+    ringOp: 0.5,
+    layerOps: [0.03, 0.03, 0.03, 0.30, 1.0, 0.22, 0.22],
+    label: 'Mantle',
+  },
+  {
+    // outer core
+    clipX: -0.28,
+    cam: [0.75, 0.0, 3.4],
+    discOp: 0.8,
+    ringOp: 0.55,
+    layerOps: [0.03, 0.03, 0.03, 0.22, 0.32, 1.0, 0.30],
+    label: 'Outer Core',
+  },
+  {
+    // inner core
+    clipX: -0.72,
+    cam: [0.75, -0.05, 3.1],
+    discOp: 0.85,
+    ringOp: 0.6,
+    layerOps: [0.02, 0.02, 0.02, 0.18, 0.22, 0.45, 1.0],
+    label: 'Inner Core',
+  },
+  {
+    // atmosphere
+    clipX: 2.5,
+    cam: [0.0, 0.3, 6.2],
+    discOp: 0.0,
+    ringOp: 0.0,
+    layerOps: [0.20, 0.18, 0.16, 0.35, 0.28, 0.48, 0.78],
+    label: 'Atmosphere',
+  },
+];
+
+// Smooth state
+let currentSection = 0;
+let clipXCurrent = 2.5;
+let clipXTarget = 2.5;
+let discOpCurrent = 0.0;
+let discOpTarget = 0.0;
+let ringOpCurrent = 0.0;
+let ringOpTarget = 0.0;
+let layerOpsCurrent = [...SECTION_CONFIG[0].layerOps];
+let layerOpsTarget = [...SECTION_CONFIG[0].layerOps];
+let camCurrent = [0.4, 0.15, 4.8];
+let camTarget = [0.4, 0.15, 4.8];
+
+// ─────────────────────────────────────────────
+//  DOM
+// ─────────────────────────────────────────────
+const sections = document.querySelectorAll('.section');
+const sectionContents = document.querySelectorAll('.section-content');
+const dots = document.querySelectorAll('.progress-dot');
+const scrollHint = document.getElementById('scrollHint');
+const layerLabel = document.getElementById('layer-label');
+
+// Reveal on scroll
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('visible');
+  });
+}, { threshold: 0.25 });
+sectionContents.forEach(c => revealObserver.observe(c));
+
+// ─────────────────────────────────────────────
+//  SCROLL
+// ─────────────────────────────────────────────
+function onScroll() {
+  const maxScroll = document.body.scrollHeight - window.innerHeight;
+  const progress = window.scrollY / maxScroll;
+
+  // Hide scroll hint
+  scrollHint.style.opacity = window.scrollY > 60 ? '0' : '1';
+
+  // Detect active section
+  let active = 0;
+  sections.forEach((sec, i) => {
+    if (sec.getBoundingClientRect().top < window.innerHeight * 0.55) active = i;
+  });
+
+  if (active !== currentSection) {
+    currentSection = active;
+    const cfg = SECTION_CONFIG[active];
+
+    clipXTarget = cfg.clipX;
+    discOpTarget = cfg.discOp;
+    ringOpTarget = cfg.ringOp;
+    layerOpsTarget = [...cfg.layerOps];
+    camTarget = [...cfg.cam];
+
+    // Update label
+    layerLabel.textContent = cfg.label;
+    layerLabel.style.opacity = cfg.label ? '1' : '0';
+
+    // Update dots
+    dots.forEach((d, i) => d.classList.toggle('active', i === active));
+  }
+}
+
+window.addEventListener('scroll', onScroll, { passive: true });
+
+// ─────────────────────────────────────────────
+//  RESIZE
+// ─────────────────────────────────────────────
+function onResize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ─────────────────────────────────────────────
+//  ANIMATE
+// ─────────────────────────────────────────────
+const LERP = 0.055;
+let time = 0;
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.007;
+
+  // Smooth interpolations
+  clipXCurrent = lerp(clipXCurrent, clipXTarget, LERP);
+  discOpCurrent = lerp(discOpCurrent, discOpTarget, LERP);
+  ringOpCurrent = lerp(ringOpCurrent, ringOpTarget, LERP);
+  for (let i = 0; i < layerOpsCurrent.length; i++) {
+    layerOpsCurrent[i] = lerp(layerOpsCurrent[i], layerOpsTarget[i], LERP);
+  }
+  for (let i = 0; i < 3; i++) {
+    camCurrent[i] = lerp(camCurrent[i], camTarget[i], LERP);
+  }
+
+  // Apply clip
+  clipPlane.constant = clipXCurrent;
+
+  // Apply disc
+  disc.material.opacity = discOpCurrent;
+
+  // Apply cut rings
+  cutRings.forEach(r => { r.material.opacity = ringOpCurrent; });
+
+  // Apply layer opacities + rotate
+  sphereMeshes.forEach((mesh, i) => {
+    mesh.material.opacity = layerOpsCurrent[i];
+    const spd = mesh.userData.rotSpeed * 0.00055;
+    mesh.rotation.y += spd;
+    mesh.rotation.x += spd * 0.25;
+  });
+
+  // Disc slow drift
+  disc.rotation.z += 0.00015;
+
+  // Apply camera
+  camera.position.set(camCurrent[0], camCurrent[1], camCurrent[2]);
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+onScroll(); // init state
+</script>
+</body>
+</html>
